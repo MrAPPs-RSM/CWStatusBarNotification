@@ -10,6 +10,7 @@
 #import "CWStatusBarNotification.h"
 
 #define SYSTEM_VERSION_LESS_THAN(v) ([[[UIDevice currentDevice] systemVersion] compare:v options:NSNumericSearch] == NSOrderedAscending)
+#define SYSTEM_GREATER_OR_EQUAL_TO(v) ([[[UIDevice currentDevice] systemVersion] compare:v options:NSNumericSearch] == NSOrderedDescending || [[[UIDevice currentDevice] systemVersion] compare:v options:NSNumericSearch] == NSOrderedSame)
 
 #define FONT_SIZE 12.0f
 #define PADDING 10.0f
@@ -242,7 +243,11 @@ static void cancel_delayed_block(CWDelayedBlockHandle delayedHandle)
     if (SYSTEM_VERSION_LESS_THAN(@"8.0") && UIInterfaceOrientationIsLandscape([UIApplication sharedApplication].statusBarOrientation)) {
         statusBarHeight = [[UIApplication sharedApplication] statusBarFrame].size.width;
     }
-    return statusBarHeight > 0 ? statusBarHeight : 20;
+    if (@available(iOS 11.0, *)) {
+        return statusBarHeight + [UIApplication sharedApplication].keyWindow.safeAreaInsets.top;
+    } else {
+        return statusBarHeight > 0 ? statusBarHeight : 20;
+    }
 }
 
 - (CGFloat)getStatusBarWidth
@@ -263,11 +268,20 @@ static void cancel_delayed_block(CWDelayedBlockHandle delayedHandle)
 
 - (CGFloat)getNavigationBarHeight
 {
-    if (UIInterfaceOrientationIsPortrait([UIApplication sharedApplication].statusBarOrientation) ||
-        UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad) {
-        return 44.0f;
+    
+    if (@available(iOS 11.0, *)) {
+        if (UIInterfaceOrientationIsPortrait([UIApplication sharedApplication].statusBarOrientation) ||
+            UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad) {
+            return 44 + [UIApplication sharedApplication].keyWindow.safeAreaInsets.top;
+        }
+        return 30.0f;
+    } else {
+        if (UIInterfaceOrientationIsPortrait([UIApplication sharedApplication].statusBarOrientation) ||
+            UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad) {
+            return 44;
+        }
+        return 30.0f;
     }
-    return 30.0f;
 }
 
 - (CGFloat)getNotificationLabelHeight
@@ -349,8 +363,15 @@ static void cancel_delayed_block(CWDelayedBlockHandle delayedHandle)
 - (void)createNotificationLabelWithMessage:(NSString *)message
 {
     self.notificationLabel = [ScrollLabel new];
+    NSString *fixedMessage = message;
+    if (@available(iOS 11.0, *)) {
+        if ([UIApplication sharedApplication].keyWindow.safeAreaInsets.top > 0) {
+            self.multiline = YES;
+            fixedMessage = [NSString stringWithFormat:@"\n%@", message];
+        }
+    }
     self.notificationLabel.numberOfLines = self.multiline ? 0 : 1;
-    self.notificationLabel.text = message;
+    self.notificationLabel.text = fixedMessage;
     self.notificationLabel.textAlignment = NSTextAlignmentCenter;
     self.notificationLabel.adjustsFontSizeToFitWidth = NO;
     self.notificationLabel.font = self.notificationLabelFont;
